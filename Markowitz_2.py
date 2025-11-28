@@ -51,12 +51,12 @@ class MyPortfolio:
     NOTE: You can modify the initialization function
     """
 
-    def __init__(self, price, exclude, lookback=50, gamma=0):
+    def __init__(self, price, exclude, momentum_lookback=120, top_n=5):
         self.price = price
         self.returns = price.pct_change().fillna(0)
         self.exclude = exclude
-        self.lookback = lookback
-        self.gamma = gamma
+        self.momentum_lookback = momentum_lookback
+        self.top_n = top_n
 
     def calculate_weights(self):
         # Get the assets by excluding the specified column
@@ -70,8 +70,39 @@ class MyPortfolio:
         """
         TODO: Complete Task 4 Below
         """
+        # Momentum Strategy with Proportional Weighting
+        # Select top N performing sectors and weight them proportionally to their momentum
+        n_assets = len(assets)
         
+        for i in range(self.momentum_lookback + 1, len(self.price)):
+            # Get historical returns for momentum calculation
+            mom_returns = self.returns[assets].iloc[i - self.momentum_lookback : i]
+            
+            # Calculate momentum scores (cumulative returns over the period)
+            momentum = (1 + mom_returns).prod() - 1
+            
+            # Select top N assets by momentum
+            top_assets = momentum.nlargest(self.top_n).index
+            
+            # Weight proportionally to momentum score (not equal weight)
+            top_momentum = momentum[top_assets]
+            
+            # Ensure all weights are positive by shifting if necessary
+            if top_momentum.min() < 0:
+                top_momentum = top_momentum - top_momentum.min() + 0.01
+            
+            # Normalize to sum to 1
+            weights = top_momentum / top_momentum.sum()
+            
+            # Assign weights
+            for asset in assets:
+                if asset in top_assets:
+                    self.portfolio_weights.loc[self.price.index[i], asset] = weights[asset]
+                else:
+                    self.portfolio_weights.loc[self.price.index[i], asset] = 0.0
         
+        # Set excluded asset (SPY) to 0
+        self.portfolio_weights[self.exclude] = 0
         """
         TODO: Complete Task 4 Above
         """
